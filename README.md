@@ -1,10 +1,6 @@
 # Marshall Motion Studio
 
-Internal tool combining two views:
-
-- **Collage** (`/`) — animated photo collages with Remotion preview & Lambda export
-- **360 Viewer** (`/360`) — equirectangular 360° image viewer with built-in
-  photo → 360° converter (`public/360-viewer.html`, self-contained Three.js app)
+Internal tool for generating animated photo collages.
 
 ## Setup
 
