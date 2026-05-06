@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { CollagePreview } from '@/components/CollagePreview';
 import { ControlPanel } from '@/components/ControlPanel';
+import { TopNav } from '@/components/TopNav';
 import {
   type PanelOverrides,
   type PanelOverride,
@@ -68,9 +69,7 @@ export default function HomePage() {
 
   return (
     <main className="flex h-screen bg-neutral-900">
-      <header className="absolute top-0 left-0 right-80 px-5 py-3 border-b border-white/10 bg-neutral-950/50 backdrop-blur z-10">
-        <h1 className="text-sm font-semibold tracking-wide">Marshall Collage Generator</h1>
-      </header>
+      <TopNav active="collage" rightOffset="20rem" />
 
       <CollagePreview
         images={images}

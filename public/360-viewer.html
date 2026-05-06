@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>360° Viewer</title>
+<style>
+  * { margin:0;padding:0;box-sizing:border-box; }
+  body { background:#000;overflow:hidden;font-family:'Courier New',monospace;color:#fff; }
+  #placeholder {
+    position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:16px;pointer-events:none;z-index:1;
+  }
+  #placeholder .icon { font-size:48px;opacity:.15; }
+  #placeholder p { font-size:12px;letter-spacing:.2em;text-transform:uppercase;opacity:.25;text-align:center;line-height:2; }
+  #ui {
+    position:fixed;bottom:28px;left:50%;transform:translateX(-50%);
+    display:flex;align-items:center;gap:10px;
+    background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.14);
+    backdrop-filter:blur(12px);padding:9px 18px;border-radius:40px;
+    font-size:11px;letter-spacing:.1em;user-select:none;white-space:nowrap;
+    color:rgba(255,255,255,.65);z-index:10;
+  }
+  .dot{width:6px;height:6px;border-radius:50%;background:#f44;animation:pulse 2s infinite;flex-shrink:0;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .sep{opacity:.25;}
+  .pill-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:11px;letter-spacing:.1em;font-family:inherit;padding:5px 13px;border-radius:20px;cursor:pointer;transition:background .15s;text-transform:uppercase;}
+  .pill-btn:hover{background:rgba(255,255,255,.2);}
+  .pill-btn.accent{background:rgba(255,220,60,.15);border-color:rgba(255,220,60,.4);color:#ffd83c;}
+  .pill-btn.accent:hover{background:rgba(255,220,60,.28);}
+  #file-input,#conv-file-input{display:none;}
+  #zoom{position:fixed;right:22px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:10;}
+  .zbtn{width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);transition:background .15s;}
+  .zbtn:hover{background:rgba(255,255,255,.18);}
+  #drop-zone{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:50;border:2px dashed rgba(255,255,255,.3);color:rgba(255,255,255,.6);font-size:13px;letter-spacing:.2em;text-transform:uppercase;pointer-events:none;}
+  #drop-zone.active{display:flex;}
+  #conv-panel{position:fixed;inset:0;background:rgba(0,0,0,.92);backdrop-filter:blur(16px);z-index:200;display:none;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:24px;}
+  #conv-panel.open{display:flex;}
+  #conv-inner{width:100%;max-width:620px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:28px;display:flex;flex-direction:column;gap:18px;}
+  #conv-inner h2{font-size:12px;letter-spacing:.25em;text-transform:uppercase;opacity:.5;font-weight:normal;}
+  #conv-preview-wrap{width:100%;aspect-ratio:16/7;background:rgba(255,255,255,.04);border:1px dashed rgba(255,255,255,.15);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;}
+  #conv-preview-wrap:hover{border-color:rgba(255,255,255,.3);}
+  #conv-preview{max-width:100%;max-height:100%;object-fit:contain;display:none;}
+  #conv-placeholder{color:rgba(255,255,255,.3);font-size:12px;letter-spacing:.15em;text-align:center;line-height:2;}
+  #conv-preview-wrap.has-img #conv-placeholder{display:none;}
+  #conv-preview-wrap.has-img #conv-preview{display:block;}
+  .ctrl-row{display:flex;align-items:center;gap:12px;}
+  .ctrl-label{font-size:11px;letter-spacing:.1em;opacity:.5;text-transform:uppercase;min-width:110px;}
+  .ctrl-val{font-size:12px;opacity:.8;min-width:38px;text-align:right;}
+  input[type=range]{flex:1;appearance:none;height:3px;background:rgba(255,255,255,.15);border-radius:2px;outline:none;cursor:pointer;}
+  input[type=range]::-webkit-slider-thumb{appearance:none;width:14px;height:14px;background:#fff;border-radius:50%;cursor:pointer;}
+  select.pill-select{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#fff;font-family:inherit;font-size:11px;letter-spacing:.08em;padding:5px 10px;border-radius:20px;cursor:pointer;outline:none;}
+  select.pill-select option{background:#111;}
+  .action-row{display:flex;gap:10px;justify-content:flex-end;margin-top:4px;}
+  #conv-progress{display:none;height:3px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden;}
+  #conv-progress-bar{height:100%;background:#ffd83c;width:0%;transition:width .15s;}
+  #conv-status{font-size:11px;opacity:.45;letter-spacing:.1em;text-align:center;min-height:16px;}
+</style>
+</head>
+<body>
+<div id="placeholder"><div class="icon">⬆</div><p>Load a 360° image<br>or convert a photo to get started</p></div>
+<div id="drop-zone">Drop image to load</div>
+<div id="ui">
+  <div class="dot"></div>
+  <span>DRAG TO EXPLORE &nbsp;·&nbsp; SCROLL TO ZOOM</span>
+  <span class="sep">|</span>
+  <button class="pill-btn" onclick="document.getElementById('file-input').click()">⬆ Load 360°</button>
+  <button class="pill-btn accent" onclick="openConv()">⚡ Convert to 360°</button>
+  <input type="file" id="file-input" accept="image/*">
+</div>
+<div id="zoom">
+  <button class="zbtn" id="zin">+</button>
+  <button class="zbtn" id="zout">−</button>
+</div>
+<div id="conv-panel">
+  <div id="conv-inner">
+    <h2>Convert image → 360° Equirectangular</h2>
+    <div id="conv-preview-wrap" onclick="document.getElementById('conv-file-input').click()">
+      <img id="conv-preview" alt="">
+      <div id="conv-placeholder">Click to upload a photo<br><span style="font-size:10px;opacity:.5">JPG · PNG · WebP</span></div>
+    </div>
+    <input type="file" id="conv-file-input" accept="image/*">
+    <div class="ctrl-row">
+      <span class="ctrl-label">Source FOV</span>
+      <input type="range" id="fov-slider" min="20" max="160" value="90" oninput="document.getElementById('fov-val').textContent=this.value+'°'">
+      <span class="ctrl-val" id="fov-val">90°</span>
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">Back fill</span>
+      <select class="pill-select" id="fill-mode">
+        <option value="mirror">Mirror</option>
+        <option value="blur">Blur edge</option>
+        <option value="black">Black</option>
+      </select>
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">Output size</span>
+      <select class="pill-select" id="out-size">
+        <option value="2048">2048 × 1024</option>
+        <option value="4096">4096 × 2048</option>
+        <option value="1024">1024 × 512 (fast)</option>
+      </select>
+    </div>
+    <div id="conv-progress"><div id="conv-progress-bar"></div></div>
+    <div id="conv-status"></div>
+    <div class="action-row">
+      <button class="pill-btn" onclick="closeConv()">Cancel</button>
+      <button class="pill-btn accent" id="conv-btn" onclick="runConvert()">Convert &amp; Load</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const scene    = new THREE.Scene();
+const camera   = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const geo = new THREE.SphereGeometry(500, 60, 30);
+geo.scale(-1, 1, 1);
+let mesh = null;
+
+function setTexture(tex) {
+  tex.minFilter = THREE.LinearFilter;
+  if (mesh) {
+    const old = mesh.material.map;
+    mesh.material.map = tex;
+    mesh.material.needsUpdate = true;
+    if (old) old.dispose();
+  } else {
+    mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex }));
+    scene.add(mesh);
+  }
+  document.getElementById('placeholder').style.display = 'none';
+}
+
+function imgToTexture(img) {
+  const MAX = 4096;
+  if (img.naturalWidth <= MAX) {
+    const tex = new THREE.Texture(img);
+    tex.needsUpdate = true;
+    setTexture(tex);
+  } else {
+    const c = document.createElement('canvas');
+    c.width = MAX; c.height = Math.round(img.naturalHeight * MAX / img.naturalWidth);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const tex = new THREE.Texture(c); tex.needsUpdate = true; setTexture(tex);
+  }
+}
+
+function loadDataURL(dataURL) {
+  const img = new Image();
+  img.onload  = () => imgToTexture(img);
+  img.onerror = () => console.error('Image load failed');
+  img.src = dataURL;
+}
+
+function loadFile(file) {
+  const r = new FileReader();
+  r.onload = ev => loadDataURL(ev.target.result);
+  r.readAsDataURL(file);
+}
+
+function loadCanvas(canvas) {
+  const img = new Image();
+  img.onload = () => imgToTexture(img);
+  img.src = canvas.toDataURL('image/jpeg', 0.93);
+}
+
+document.getElementById('file-input').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  loadFile(f); e.target.value = '';
+});
+
+document.addEventListener('dragover', e => { e.preventDefault(); document.getElementById('drop-zone').classList.add('active'); });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) document.getElementById('drop-zone').classList.remove('active'); });
+document.addEventListener('drop', e => {
+  e.preventDefault(); document.getElementById('drop-zone').classList.remove('active');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) loadFile(f);
+});
+
+camera.position.set(0, 0, 0.1);
+let isDragging=false, prevX=0, prevY=0, targetX=0, targetY=0, rotX=0, rotY=0, fov=75, autoRotate=0.04;
+
+const cv = renderer.domElement;
+cv.addEventListener('mousedown', e=>{ isDragging=true; prevX=e.clientX; prevY=e.clientY; autoRotate=0; });
+window.addEventListener('mouseup', ()=>isDragging=false);
+window.addEventListener('mousemove', e=>{
+  if(!isDragging)return;
+  targetY-=(e.clientX-prevX)*0.25; targetX-=(e.clientY-prevY)*0.15;
+  targetX=Math.max(-80,Math.min(80,targetX)); prevX=e.clientX; prevY=e.clientY;
+});
+cv.addEventListener('touchstart',e=>{isDragging=true;prevX=e.touches[0].clientX;prevY=e.touches[0].clientY;autoRotate=0;},{passive:true});
+cv.addEventListener('touchend',()=>isDragging=false);
+cv.addEventListener('touchmove',e=>{
+  if(!isDragging)return;
+  targetY-=(e.touches[0].clientX-prevX)*0.25;targetX-=(e.touches[0].clientY-prevY)*0.15;
+  targetX=Math.max(-80,Math.min(80,targetX));prevX=e.touches[0].clientX;prevY=e.touches[0].clientY;
+},{passive:true});
+window.addEventListener('wheel',e=>{fov=Math.max(30,Math.min(100,fov+e.deltaY*0.05));camera.fov=fov;camera.updateProjectionMatrix();},{passive:true});
+document.getElementById('zin').onclick =()=>{fov=Math.max(30,fov-10);camera.fov=fov;camera.updateProjectionMatrix();};
+document.getElementById('zout').onclick=()=>{fov=Math.min(100,fov+10);camera.fov=fov;camera.updateProjectionMatrix();};
+window.addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+(function animate(){
+  requestAnimationFrame(animate);
+  rotX+=(targetX-rotX)*0.08; rotY+=(targetY-rotY)*0.08; targetY+=autoRotate;
+  camera.rotation.order='YXZ';
+  camera.rotation.y=THREE.MathUtils.degToRad(-rotY);
+  camera.rotation.x=THREE.MathUtils.degToRad(rotX);
+  renderer.render(scene,camera);
+})();
+
+// ══ CONVERTER ══
+let convSourceImg = null;
+function openConv()  { document.getElementById('conv-panel').classList.add('open'); }
+function closeConv() { document.getElementById('conv-panel').classList.remove('open'); }
+
+document.getElementById('conv-file-input').addEventListener('change', e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{ convSourceImg=img; document.getElementById('conv-preview').src=ev.target.result; document.getElementById('conv-preview-wrap').classList.add('has-img'); };
+    img.src=ev.target.result;
+  };
+  r.readAsDataURL(f); e.target.value='';
+});
+
+function convertToEquirectangular(srcImg, fovDeg, fillMode, outW) {
+  const outH = outW / 2;
+
+  // Scale source for performance
+  const scale = Math.min(1500 / srcImg.naturalWidth, 1);
+  const sW = Math.round(srcImg.naturalWidth  * scale);
+  const sH = Math.round(srcImg.naturalHeight * scale);
+  const srcC = document.createElement('canvas');
+  srcC.width=sW; srcC.height=sH;
+  srcC.getContext('2d').drawImage(srcImg, 0, 0, sW, sH);
+  const srcPx = srcC.getContext('2d').getImageData(0, 0, sW, sH).data;
+
+  // Mirror canvas for back fill
+  let mirPx = null;
+  if (fillMode === 'mirror') {
+    const mC = document.createElement('canvas'); mC.width=sW; mC.height=sH;
+    const mCtx = mC.getContext('2d');
+    mCtx.translate(sW, 0); mCtx.scale(-1, 1); mCtx.drawImage(srcC, 0, 0);
+    mirPx = mCtx.getImageData(0, 0, sW, sH).data;
+  }
+
+  const fovH = fovDeg * Math.PI / 180;
+  const fovV = fovH * (sH / sW);   // respect image aspect ratio
+  const tanH = Math.tan(fovH / 2);
+  const tanV = Math.tan(fovV / 2);
+
+  // Bilinear sample [0..1] UV into pixel buffer
+  function sample(px, w, h, u, v) {
+    if (u < 0 || u > 1 || v < 0 || v > 1) return null;
+    const x=u*(w-1), y=v*(h-1);
+    const x0=Math.floor(x), y0=Math.floor(y);
+    const x1=Math.min(x0+1,w-1), y1=Math.min(y0+1,h-1);
+    const fx=x-x0, fy=y-y0;
+    const i00=(y0*w+x0)*4, i10=(y0*w+x1)*4, i01=(y1*w+x0)*4, i11=(y1*w+x1)*4;
+    return [
+      px[i00]*(1-fx)*(1-fy)+px[i10]*fx*(1-fy)+px[i01]*(1-fx)*fy+px[i11]*fx*fy,
+      px[i00+1]*(1-fx)*(1-fy)+px[i10+1]*fx*(1-fy)+px[i01+1]*(1-fx)*fy+px[i11+1]*fx*fy,
+      px[i00+2]*(1-fx)*(1-fy)+px[i10+2]*fx*(1-fy)+px[i01+2]*(1-fx)*fy+px[i11+2]*fx*fy
+    ];
+  }
+
+  const out = new Uint8ClampedArray(outW * outH * 4);
+
+  for (let py = 0; py < outH; py++) {
+    // ── KEY FIX: lat runs from +π/2 (north pole, canvas TOP) down to −π/2 (south pole, canvas BOTTOM)
+    // THREE.Texture(flipY=true) maps canvas TOP → sphere north pole, so this must match.
+    const lat = Math.PI / 2 - (py / outH) * Math.PI;
+    const cosLat = Math.cos(lat), sinLat = Math.sin(lat);
+
+    for (let px = 0; px < outW; px++) {
+      const lon = (px / outW) * 2 * Math.PI - Math.PI; // −π … +π
+
+      // Direction vector on unit sphere (camera looks along +Z)
+      const x3 = cosLat * Math.sin(lon);
+      const y3 = sinLat;
+      const z3 = cosLat * Math.cos(lon);
+
+      const oi = (py * outW + px) * 4;
+      let col = null;
+
+      // ── Front hemisphere: perspective projection onto source image
+      if (z3 > 0.001) {
+        const u = ( x3 / z3 / tanH + 1) / 2;  // horizontal: positive x → right
+        const v = (-y3 / z3 / tanV + 1) / 2;  // vertical:  positive y → up in 3D → top of image (small v)
+        col = sample(srcPx, sW, sH, u, v);
+      }
+
+      // ── Back hemisphere fill
+      if (!col) {
+        if (fillMode === 'mirror' && mirPx && z3 < -0.001) {
+          const bz = -z3;
+          const u = (-x3 / bz / tanH + 1) / 2;
+          const v = (-y3 / bz / tanV + 1) / 2;
+          const mc = sample(mirPx, sW, sH, u, v);
+          // Fade based on how "far back" we are, so edges blend smoothly
+          const fade = Math.max(0, Math.min(1, (-z3 - 0.001) / 0.3)) * 0.6;
+          if (mc) col = [mc[0]*fade, mc[1]*fade, mc[2]*fade];
+        } else if (fillMode === 'blur') {
+          // Stretch edge pixels with distance-based fade
+          const cz = Math.abs(z3) + 0.001;
+          const cx = Math.max(-1, Math.min(1,  x3 / cz / tanH));
+          const cy = Math.max(-1, Math.min(1, -y3 / cz / tanV));
+          const c = sample(srcPx, sW, sH, (cx+1)/2, (cy+1)/2);
+          if (c) {
+            const fade = Math.max(0, z3); // fade to black as we go behind
+            col = [c[0]*fade, c[1]*fade, c[2]*fade];
+          }
+        }
+        // fillMode === 'black': leave col = null → black pixels
+      }
+
+      if (col) { out[oi]=col[0]; out[oi+1]=col[1]; out[oi+2]=col[2]; }
+      out[oi+3] = 255;
+    }
+  }
+
+  const outC = document.createElement('canvas');
+  outC.width=outW; outC.height=outH;
+  outC.getContext('2d').putImageData(new ImageData(out, outW, outH), 0, 0);
+  return outC;
+}
+
+async function runConvert() {
+  if (!convSourceImg) { alert('Upload an image first.'); return; }
+  const btn=document.getElementById('conv-btn');
+  const bar=document.getElementById('conv-progress-bar');
+  const prog=document.getElementById('conv-progress');
+  const status=document.getElementById('conv-status');
+  const fovDeg   = parseInt(document.getElementById('fov-slider').value);
+  const fillMode = document.getElementById('fill-mode').value;
+  const outW     = parseInt(document.getElementById('out-size').value);
+
+  btn.disabled=true; prog.style.display='block';
+  bar.style.width='10%'; status.textContent='Converting…';
+  await new Promise(r=>setTimeout(r,60));
+  bar.style.width='50%';
+  await new Promise(r=>setTimeout(r,30));
+
+  const outCanvas = convertToEquirectangular(convSourceImg, fovDeg, fillMode, outW);
+
+  bar.style.width='88%'; status.textContent='Loading into viewer…';
+  await new Promise(r=>setTimeout(r,30));
+
+  loadCanvas(outCanvas);
+
+  bar.style.width='100%'; status.textContent='Done ✓';
+  await new Promise(r=>setTimeout(r,650));
+  btn.disabled=false; prog.style.display='none'; bar.style.width='0%'; status.textContent='';
+  closeConv();
+}
+</script>
+</body>
+</html>

@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Marshall Collage Generator',
-  description: 'Internal tool for generating animated photo collages',
+  title: 'Marshall Motion Studio',
+  description: 'Internal tool for animated photo collages and 360° viewing',
 };
 
 export default function RootLayout({
