@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { Player } from '@remotion/player';
 import { Collage } from '@/remotion/src/Collage';
 import { generatePanels } from '@/remotion/src/generation';
@@ -10,7 +10,10 @@ import {
   type PanelOverrides,
   type AspectFormat,
   getFormatDimensions,
+  getSeamlessLoopFrames,
 } from '@/remotion/src/types';
+
+const PREVIEW_FPS = 25;
 import { useTransformControls } from '@/lib/useTransformControls';
 import { TransformHUD } from '@/components/TransformHUD';
 
@@ -106,6 +109,13 @@ export const CollagePreview: React.FC<Props> = ({
   // Use medium tier for the live preview (good balance of quality vs perf)
   const previewDims = getFormatDimensions(format, 'medium');
 
+  // Snap timeline length so the rotation always loops seamlessly,
+  // regardless of the chosen speed.
+  const playerDuration = useMemo(
+    () => getSeamlessLoopFrames(rotationSpeed, PREVIEW_FPS),
+    [rotationSpeed]
+  );
+
   // Aspect ratio class to size the canvas correctly in the layout
   const aspectStyle: React.CSSProperties = {
     aspectRatio: `${previewDims.width} / ${previewDims.height}`,
@@ -130,8 +140,8 @@ export const CollagePreview: React.FC<Props> = ({
         >
           <Player
             component={Collage}
-            durationInFrames={150}
-            fps={25}
+            durationInFrames={playerDuration}
+            fps={PREVIEW_FPS}
             compositionWidth={previewDims.width}
             compositionHeight={previewDims.height}
             style={{ width: '100%', height: '100%' }}

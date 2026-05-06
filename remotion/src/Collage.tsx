@@ -23,10 +23,17 @@ export const Collage: React.FC<Props> = ({
   onBackgroundClick,
 }) => {
   const frame = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
+  const { fps, width, height, durationInFrames } = useVideoConfig();
 
-  const t = frame / fps;
-  const clusterY = t * rotationSpeed;
+  // Seamless-loop rotation: snap to an integer number of full turns over
+  // the timeline so frame 0 and frame `durationInFrames` are visually
+  // identical, regardless of the chosen rotation speed.
+  const totalSeconds = durationInFrames / fps;
+  const desiredTotalDeg = totalSeconds * rotationSpeed;
+  const turns = Math.round(desiredTotalDeg / 360);
+  const totalRotationDeg = turns * 360;
+  const clusterY =
+    durationInFrames > 0 ? (frame / durationInFrames) * totalRotationDeg : 0;
   const grainSeed = frame;
 
   // Scale based on the SHORTER side so panels fit in any aspect ratio

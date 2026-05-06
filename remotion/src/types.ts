@@ -86,3 +86,35 @@ export const SIZE_LABELS: Record<SizeTier, string> = {
   medium: 'Medium',
   high:   'High',
 };
+
+// ----------------------------------------
+// Seamless loop helpers
+// ----------------------------------------
+
+/**
+ * Default target length (in seconds) for the timeline. The actual duration
+ * is snapped to whatever length lets the rotation complete a whole number
+ * of full turns, so the animation always loops seamlessly.
+ */
+export const TARGET_LOOP_SECONDS = 6;
+
+/**
+ * Returns a duration (in frames) that is as close to TARGET_LOOP_SECONDS
+ * as possible while letting `rotationSpeed` complete an integer number
+ * of full 360° turns. Guarantees `>= 1` frame.
+ */
+export function getSeamlessLoopFrames(
+  rotationSpeed: number,
+  fps: number,
+  targetSeconds: number = TARGET_LOOP_SECONDS
+): number {
+  const speed = Math.abs(rotationSpeed);
+  if (speed < 0.0001) {
+    // No rotation → any duration loops; just use the target.
+    return Math.max(1, Math.round(targetSeconds * fps));
+  }
+  const oneRevolutionSec = 360 / speed;
+  // Pick the integer number of revolutions that brings total length closest to target.
+  const turns = Math.max(1, Math.round(targetSeconds / oneRevolutionSec));
+  return Math.max(1, Math.round(turns * oneRevolutionSec * fps));
+}

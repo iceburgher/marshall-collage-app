@@ -6,8 +6,11 @@ import {
   ALL_SIZES,
   getCompositionId,
   getFormatDimensions,
+  getSeamlessLoopFrames,
   type CollageProps,
 } from './types';
+
+const FPS = 25;
 
 const defaultCollageProps: CollageProps = {
   images: [],
@@ -28,11 +31,18 @@ export const RemotionRoot: React.FC = () => (
             key={id}
             id={id}
             component={Collage}
-            durationInFrames={150}
-            fps={25}
+            durationInFrames={getSeamlessLoopFrames(
+              defaultCollageProps.rotationSpeed,
+              FPS
+            )}
+            fps={FPS}
             width={width}
             height={height}
             defaultProps={defaultCollageProps}
+            calculateMetadata={({ props }) => ({
+              durationInFrames: getSeamlessLoopFrames(props.rotationSpeed, FPS),
+              props,
+            })}
           />
         );
       })
